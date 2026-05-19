@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ListSync - Auto eBay Lister</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #f0f0f0; min-height: 100vh; }
+
+  header { background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 20px; font-weight: 700; color: #fff; }
+  header h1 span { color: #3b82f6; }
+
+  #status-bar { display: flex; align-items: center; gap: 10px; }
+  #status-dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; transition: background 0.3s; }
+  #status-dot.connected { background: #22c55e; }
+  #status-text { font-size: 13px; color: #888; }
+  #connect-btn { background: #3b82f6; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+  #connect-btn:hover { background: #2563eb; }
+  #connect-btn.connected { background: #1a1a1a; border: 1px solid #2a2a2a; color: #888; cursor: default; }
+
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+
+  .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 16px; padding: 28px; margin-bottom: 24px; }
+  .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 20px; color: #fff; }
+
+  /* Drop zone */
+  #drop-zone { border: 2px dashed #2a2a2a; border-radius: 12px; padding: 48px 24px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  #drop-zone:hover, #drop-zone.dragover { border-color: #3b82f6; background: rgba(59,130,246,0.05); }
+  #drop-zone svg { margin-bottom: 12px; color: #3b82f6; }
+  #drop-zone p { color: #888; font-size: 14px; }
+  #drop-zone p strong { color: #fff; }
+  #file-input { display: none; }
+
+  #photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-top: 16px; }
+  .photo-thumb { aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: #111; }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+  #analyze-btn { width: 100%; margin-top: 20px; padding: 14px; background: #3b82f6; border: none; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; display: none; }
+  #analyze-btn:hover { background: #2563eb; }
+  #analyze-btn:disabled { background: #1d4ed8; opacity: 0.7; cursor: not-allowed; }
+
+  /* AI results form */
+  #listing-form { display: none; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-group label { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-group input, .form-group select, .form-group textarea {
+    background: #111; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px 12px;
+    color: #fff; font-size: 14px; font-family: inherit; transition: border-color 0.2s;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none; border-color: #3b82f6;
+  }
+  .form-group textarea { resize: vertical; min-height: 90px; }
+  .form-group select option { background: #1a1a1a; }
+
+  .ai-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(59,130,246,0.15); color: #3b82f6; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; margin-bottom: 16px; }
+
+  #post-btn { width: 100%; margin-top: 24px; padding: 16px; background: #22c55e; border: none; border-radius: 10px; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+  #post-btn:hover { background: #16a34a; }
+  #post-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  #reset-btn { width: 100%; margin-top: 10px; padding: 12px; background: transparent; border: 1px solid #2a2a2a; border-radius: 10px; color: #666; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+  #reset-btn:hover { border-color: #444; color: #999; }
+
+  /* Toast */
+  #toast { position: fixed; bottom: 24px; right: 24px; background: #22c55e; color: #fff; padding: 14px 20px; border-radius: 10px; font-weight: 600; font-size: 14px; transform: translateY(80px); opacity: 0; transition: all 0.3s; z-index: 100; max-width: 320px; }
+  #toast.error { background: #ef4444; }
+  #toast.show { transform: translateY(0); opacity: 1; }
+
+  /* Listings */
+  .listing-item { display: flex; align-items: center; gap: 14px; padding: 14px; background: #111; border-radius: 10px; margin-bottom: 10px; }
+  .listing-thumb { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: #222; flex-shrink: 0; }
+  .listing-info { flex: 1; min-width: 0; }
+  .listing-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .listing-meta { font-size: 12px; color: #666; margin-top: 3px; }
+  .listing-price { font-size: 16px; font-weight: 700; color: #22c55e; flex-shrink: 0; margin-right: 10px; }
+  .sold-btn { background: #ef4444; border: none; color: #fff; padding: 7px 14px; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+  .sold-btn:hover { background: #dc2626; }
+
+  #empty-listings { text-align: center; color: #444; padding: 32px; font-size: 14px; }
+
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 50; gap: 16px; display: none; }
+  .loading-overlay.show { display: flex; }
+  .loading-overlay p { color: #fff; font-weight: 600; font-size: 16px; }
+  .big-spinner { width: 44px; height: 44px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading-overlay">
+  <div class="big-spinner"></div>
+  <p id="loading-text">Analyzing photos with AI...</p>
+</div>
+
+<header>
+  <h1>List<span>Sync</span></h1>
+  <div id="status-bar">
+    <div id="status-dot"></div>
+    <span id="status-text">Not connected</span>
+    <button id="connect-btn" onclick="connectEbay()">Connect eBay</button>
+  </div>
+</header>
+
+<main>
+  <!-- Upload card -->
+  <div class="card">
+    <h2>New Listing</h2>
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFiles(event)">
+      <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+      </svg>
+      <p><strong>Drop photos here</strong> or click to browse</p>
+      <p style="margin-top:6px;font-size:12px">Add all photos of the item — front, back, tags, any flaws</p>
+    </div>
+    <input type="file" id="file-input" multiple accept="image/*" onchange="handleFiles(this.files)">
+    <div id="photo-grid"></div>
+    <button id="analyze-btn" onclick="analyzePhotos()">
+      Analyze with AI &rarr;
+    </button>
+  </div>
+
+  <!-- AI-filled form -->
+  <div class="card" id="listing-form">
+    <div class="ai-badge">
+      <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 2a8 8 0 100 16A8 8 0 0012 4zm0 3a1 1 0 011 1v3h3a1 1 0 010 2h-3v3a1 1 0 01-2 0v-3H8a1 1 0 010-2h3V8a1 1 0 011-1z"/></svg>
+      AI filled this in — review and edit before posting
+    </div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Title</label>
+        <input type="text" id="f-title" maxlength="80" placeholder="eBay listing title">
+      </div>
+      <div class="form-group">
+        <label>Brand</label>
+        <input type="text" id="f-brand">
+      </div>
+      <div class="form-group">
+        <label>Price (USD)</label>
+        <input type="number" id="f-price" step="0.01" min="0">
+      </div>
+      <div class="form-group">
+        <label>Size</label>
+        <input type="text" id="f-size">
+      </div>
+      <div class="form-group">
+        <label>Color</label>
+        <input type="text" id="f-color">
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <input type="text" id="f-category">
+      </div>
+      <div class="form-group">
+        <label>Condition</label>
+        <select id="f-condition">
+          <option>New with tags</option>
+          <option>New without tags</option>
+          <option>Very Good</option>
+          <option>Good</option>
+          <option>Acceptable</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Description</label>
+        <textarea id="f-description" rows="4"></textarea>
+      </div>
+    </div>
+    <button id="post-btn" onclick="postToEbay()">Post to eBay</button>
+    <button id="reset-btn" onclick="resetForm()">Start over</button>
+  </div>
+
+  <!-- Active listings -->
+  <div class="card">
+    <h2>Active Listings (<span id="listing-count">0</span>)</h2>
+    <div id="listings-container">
+      <div id="empty-listings">No active listings yet. Post your first item above!</div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+let selectedFiles = [];
+let uploadedFilenames = [];
+
+// Check status on load
+async function checkStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    if (data.connected) {
+      document.getElementById('status-dot').classList.add('connected');
+      document.getElementById('status-text').textContent = 'eBay connected';
+      document.getElementById('connect-btn').textContent = 'Connected';
+      document.getElementById('connect-btn').classList.add('connected');
+    }
+    loadListings();
+  } catch {}
+}
+
+// Check if redirected back from eBay
+if (location.search.includes('connected=true')) {
+  history.replaceState({}, '', '/');
+  showToast('eBay account connected!');
+}
+
+checkStatus();
+
+function connectEbay() {
+  if (document.getElementById('connect-btn').classList.contains('connected')) return;
+  window.location.href = '/auth/ebay';
+}
+
+function dragOver(e) { e.preventDefault(); e.currentTarget.classList.add('dragover'); }
+function dragLeave(e) { e.currentTarget.classList.remove('dragover'); }
+function dropFiles(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+}
+
+function handleFiles(files) {
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+    selectedFiles.push(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const grid = document.getElementById('photo-grid');
+      const div = document.createElement('div');
+      div.className = 'photo-thumb';
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      div.appendChild(img);
+      grid.appendChild(div);
+    };
+    reader.readAsDataURL(file);
+  }
+  document.getElementById('analyze-btn').style.display = selectedFiles.length > 0 ? 'block' : 'none';
+}
+
+async function analyzePhotos() {
+  if (selectedFiles.length === 0) return;
+
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+  showLoading('AI is analyzing your photos...');
+
+  try {
+    const formData = new FormData();
+    selectedFiles.forEach(f => formData.append('photos', f));
+
+    const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    uploadedFilenames = data.uploadedFiles || [];
+
+    document.getElementById('f-title').value = data.title || '';
+    document.getElementById('f-brand').value = data.brand || '';
+    document.getElementById('f-price').value = data.price || '';
+    document.getElementById('f-size').value = data.size || '';
+    document.getElementById('f-color').value = data.color || '';
+    document.getElementById('f-category').value = data.category || '';
+    document.getElementById('f-description').value = data.description || '';
+    const condSel = document.getElementById('f-condition');
+    for (let opt of condSel.options) {
+      if (opt.value === data.condition) { condSel.value = data.condition; break; }
+    }
+
+    document.getElementById('listing-form').style.display = 'block';
+    document.getElementById('listing-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (err) {
+    showToast('Analysis failed: ' + err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Analyze with AI &rarr;';
+    hideLoading();
+  }
+}
+
+async function postToEbay() {
+  const btn = document.getElementById('post-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Posting to eBay...';
+
+  const payload = {
+    title: document.getElementById('f-title').value,
+    brand: document.getElementById('f-brand').value,
+    price: parseFloat(document.getElementById('f-price').value),
+    size: document.getElementById('f-size').value,
+    color: document.getElementById('f-color').value,
+    category: document.getElementById('f-category').value,
+    condition: document.getElementById('f-condition').value,
+    description: document.getElementById('f-description').value,
+    uploadedFiles: uploadedFilenames
+  };
+
+  try {
+    const res = await fetch('/api/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    showToast('Listed on eBay! ID: ' + data.listingId);
+    resetForm();
+    loadListings();
+  } catch (err) {
+    showToast('Failed to post: ' + err.message, true);
+    btn.disabled = false;
+    btn.innerHTML = 'Post to eBay';
+  }
+}
+
+function resetForm() {
+  selectedFiles = [];
+  uploadedFilenames = [];
+  document.getElementById('photo-grid').innerHTML = '';
+  document.getElementById('analyze-btn').style.display = 'none';
+  document.getElementById('analyze-btn').disabled = false;
+  document.getElementById('analyze-btn').innerHTML = 'Analyze with AI &rarr;';
+  document.getElementById('listing-form').style.display = 'none';
+  document.getElementById('post-btn').disabled = false;
+  document.getElementById('post-btn').innerHTML = 'Post to eBay';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function loadListings() {
+  try {
+    const res = await fetch('/api/listings');
+    const listings = await res.json();
+    const container = document.getElementById('listings-container');
+    document.getElementById('listing-count').textContent = listings.length;
+
+    if (listings.length === 0) {
+      container.innerHTML = '<div id="empty-listings">No active listings yet. Post your first item above!</div>';
+      return;
+    }
+
+    container.innerHTML = listings.map(l => `
+      <div class="listing-item" id="item-${l.sku}">
+        ${l.imageFile
+          ? `<img class="listing-thumb" src="/uploads/${l.imageFile}" onerror="this.style.display='none'">`
+          : `<div class="listing-thumb"></div>`}
+        <div class="listing-info">
+          <div class="listing-title">${l.title}</div>
+          <div class="listing-meta">${l.condition} &bull; Listed ${new Date(l.listedAt).toLocaleDateString()}</div>
+        </div>
+        <div class="listing-price">$${Number(l.price).toFixed(2)}</div>
+        <button class="sold-btn" onclick="markSold('${l.sku}')">Mark Sold</button>
+      </div>
+    `).join('');
+  } catch {}
+}
+
+async function markSold(sku) {
+  if (!confirm('Mark this item as sold? It will be removed from eBay.')) return;
+  try {
+    const res = await fetch(`/api/listing/${sku}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    document.getElementById(`item-${sku}`)?.remove();
+    showToast('Listing removed from eBay!');
+    loadListings();
+  } catch (err) {
+    showToast('Error: ' + err.message, true);
+  }
+}
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = isError ? 'error show' : 'show';
+  setTimeout(() => t.className = isError ? 'error' : '', 4000);
+}
+
+function showLoading(text) {
+  document.getElementById('loading-text').textContent = text;
+  document.getElementById('loading-overlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').classList.remove('show');
+}
+</script>
+</body>
+</html>
