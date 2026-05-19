@@ -1,12 +1,14 @@
 {
   "name": "listsync-server",
   "version": "1.0.0",
-  "description": "eBay compliance server for ListSync",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "multer": "^1.4.5-lts.1",
+    "@anthropic-ai/sdk": "^0.24.0"
   }
 }
