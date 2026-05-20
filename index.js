@@ -115,9 +115,9 @@ function getItemType(category) {
 const CONDITION_MAP = {
   'New with tags': 'NEW',
   'New without tags': 'NEW_WITH_DEFECTS',
-  'Very Good': 'LIKE_NEW',
-  'Good': 'LIKE_NEW',
-  'Acceptable': 'LIKE_NEW'
+  'Very Good': 'USED_EXCELLENT',
+  'Good': 'USED_VERY_GOOD',
+  'Acceptable': 'USED_GOOD'
 };
 
 // eBay OAuth
@@ -356,7 +356,7 @@ app.post('/api/list', async (req, res) => {
           ...(imageUrls.length > 0 && { imageUrls }),
           aspects
         },
-        condition: CONDITION_MAP[condition] || 'LIKE_NEW',
+        condition: CONDITION_MAP[condition] || 'USED_GOOD',
         availability: { shipToLocationAvailability: { quantity: 1 } }
       },
       {
