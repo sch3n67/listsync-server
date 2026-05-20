@@ -96,13 +96,13 @@ const EBAY_SCOPE = [
   'https://api.ebay.com/oauth/api_scope/sell.fulfillment'
 ].join(' ');
 
-app.get('/auth/ebay', (req, res) => {
+app.get('/api/auth-url', (req, res) => {
   const url = `https://auth.ebay.com/oauth2/authorize?` +
     `client_id=${EBAY_APP_ID}&` +
     `redirect_uri=${encodeURIComponent(EBAY_RUNAME)}&` +
     `response_type=code&` +
     `scope=${encodeURIComponent(EBAY_SCOPE)}`;
-  res.redirect(url);
+  res.json({ url });
 });
 
 app.get('/callback', async (req, res) => {
@@ -127,7 +127,8 @@ app.get('/callback', async (req, res) => {
     );
     ebayToken = response.data.access_token;
     ebayTokenExpiry = Date.now() + response.data.expires_in * 1000;
-    res.redirect('/?connected=true');
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sch3n67.github.io/listsync-app';
+    res.send(`<html><body><script>window.location.href='${frontendUrl}/?connected=true';</script></body></html>`);
   } catch (err) {
     console.error('OAuth error:', err.response?.data || err.message);
     res.status(500).send('eBay login failed: ' + JSON.stringify(err.response?.data || err.message));
