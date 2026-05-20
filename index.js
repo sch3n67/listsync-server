@@ -246,7 +246,8 @@ Return ONLY this JSON with no extra text:
   "material": "fabric type visible on tag or estimated (e.g. Cotton, Polyester, Denim, Wool, Linen) — pick Cotton if unsure",
   "condition": "one of: New with tags, New without tags, Very Good, Good, Acceptable",
   "price": <number in USD, no quotes>,
-  "description": "3-4 sentence eBay description covering: what it is, brand/style details, condition specifics, any flaws to disclose"
+  "description": "3-4 sentence eBay description covering: what it is, brand/style details, condition specifics, any flaws to disclose",
+  "rotations": [array of integers, one per image in order — degrees clockwise to rotate each image to make it right-side up: 0, 90, 180, or 270. Use 0 if already correct. Detect upside-down (use 180), sideways (use 90 or 270). Most iPhone photos are correct at 0.]
 }`
           }
         ]
@@ -273,6 +274,7 @@ Return ONLY this JSON with no extra text:
       return path.basename(jpegPath);
     }));
     data.uploadedFiles = filenames;
+    if (!Array.isArray(data.rotations)) data.rotations = filenames.map(() => 0);
 
     res.json(data);
   } catch (err) {
@@ -344,9 +346,22 @@ app.post('/api/list', async (req, res) => {
     return res.status(401).json({ error: 'Not connected to eBay. Please reconnect.' });
   }
 
-  const { title, description, price, condition, category, brand, size, color, sizeType, material, uploadedFiles } = req.body;
+  const { title, description, price, condition, category, brand, size, color, sizeType, material, uploadedFiles, rotations } = req.body;
   const sku = `ls-${Date.now()}`;
   const baseUrl = 'https://listsync-server.onrender.com';
+
+  // Apply rotations to saved images before sending to eBay
+  if (rotations && rotations.length > 0) {
+    await Promise.all((uploadedFiles || []).map(async (fname, i) => {
+      const deg = Number(rotations[i] || 0);
+      if (deg === 0) return;
+      const fpath = path.join(__dirname, 'public', 'uploads', fname);
+      if (!fs.existsSync(fpath)) return;
+      const buf = await sharp(fpath).rotate(deg).toBuffer();
+      fs.writeFileSync(fpath, buf);
+    }));
+  }
+
   const imageUrls = (uploadedFiles || []).map(f => `${baseUrl}/uploads/${f}`);
   console.log('IMAGE URLS BEING SENT TO EBAY:', JSON.stringify(imageUrls));
 
