@@ -38,6 +38,8 @@ const {
   PORT = 3000
 } = process.env;
 
+const EBAY_RUNAME_CLEAN = (EBAY_RUNAME || '').trim();
+
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 // eBay token storage
@@ -99,7 +101,7 @@ const EBAY_SCOPE = [
 app.get('/api/auth-url', (req, res) => {
   const url = `https://auth.ebay.com/oauth2/authorize?` +
     `client_id=${EBAY_APP_ID}&` +
-    `redirect_uri=${encodeURIComponent(EBAY_RUNAME)}&` +
+    `redirect_uri=${encodeURIComponent(EBAY_RUNAME_CLEAN)}&` +
     `response_type=code&` +
     `scope=${encodeURIComponent(EBAY_SCOPE)}`;
   res.json({ url });
@@ -116,7 +118,7 @@ app.get('/callback', async (req, res) => {
       new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: EBAY_RUNAME
+        redirect_uri: EBAY_RUNAME_CLEAN
       }),
       {
         headers: {
