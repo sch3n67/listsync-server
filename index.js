@@ -112,6 +112,23 @@ function getItemType(category) {
   return 'Other';
 }
 
+function getStyle(category) {
+  const lower = (category || '').toLowerCase();
+  if (lower.includes('hoodie')) return 'Pullover';
+  if (lower.includes('jeans')) return 'Straight Leg';
+  if (lower.includes('dress')) return 'Casual';
+  if (lower.includes('jacket') || lower.includes('coat')) return 'Casual';
+  if (lower.includes('sweater')) return 'Pullover';
+  return 'Casual';
+}
+
+function getSleeveLength(category) {
+  const lower = (category || '').toLowerCase();
+  if (lower.includes('t-shirt') || lower.includes('top') || lower.includes('blouse')) return 'Short Sleeve';
+  if (lower.includes('shorts') || lower.includes('skirt') || lower.includes('dress') || lower.includes('jeans') || lower.includes('pants')) return 'Sleeveless';
+  return 'Long Sleeve';
+}
+
 const CONDITION_MAP = {
   'New with tags': 'NEW',
   'New without tags': 'NEW_WITH_DEFECTS',
@@ -344,7 +361,14 @@ app.post('/api/list', async (req, res) => {
       Department: [getDepartment(category)],
       Type: [getItemType(category)],
       'Size Type': [sizeType || 'Regular'],
-      'Fabric Type': [material || 'Cotton']
+      'Fabric Type': [material || 'Cotton'],
+      Style: [getStyle(category)],
+      Fit: ['Regular'],
+      Occasion: ['Casual'],
+      Season: ['Fall', 'Winter', 'Spring', 'Summer'],
+      'Sleeve Length': [getSleeveLength(category)],
+      Pattern: ['Solid'],
+      'Country/Region of Manufacture': ['Unknown']
     };
     console.log('Step 1: aspects being sent:', JSON.stringify(aspects));
     await axios.put(
