@@ -258,15 +258,15 @@ app.post('/api/list', async (req, res) => {
 
   try {
     const policies = await getPolicies();
-
-    // Step 1: Create inventory item
+    console.log('Policies:', JSON.stringify(policies));
+    console.log('Step 1: Creating inventory item, imageUrls:', JSON.stringify(imageUrls));
     await axios.put(
       `https://api.ebay.com/sell/inventory/v1/inventory_item/${sku}`,
       {
         product: {
           title,
           description,
-          imageUrls,
+          ...(imageUrls.length > 0 && { imageUrls }),
           aspects: {
             Brand: [brand || 'Unknown'],
             Size: [size || 'See description'],
@@ -303,6 +303,7 @@ app.post('/api/list', async (req, res) => {
     if (policies.paymentPolicyId) offerPayload.listingPolicies.paymentPolicyId = policies.paymentPolicyId;
     if (policies.returnPolicyId) offerPayload.listingPolicies.returnPolicyId = policies.returnPolicyId;
 
+    console.log('Step 2: Creating offer...');
     const offerRes = await axios.post(
       'https://api.ebay.com/sell/inventory/v1/offer',
       offerPayload,
@@ -317,7 +318,7 @@ app.post('/api/list', async (req, res) => {
 
     const offerId = offerRes.data.offerId;
 
-    // Step 3: Publish offer
+    console.log('Step 3: Publishing offer', offerId);
     const publishRes = await axios.post(
       `https://api.ebay.com/sell/inventory/v1/offer/${offerId}/publish`,
       {},
