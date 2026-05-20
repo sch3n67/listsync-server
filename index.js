@@ -271,18 +271,14 @@ app.post('/api/analyze', upload.array('photos', 10), async (req, res) => {
   }
 
   try {
-    const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    // Resize + compress for Claude — keeps every image well under the 5 MB API limit
     const imageBlocks = await Promise.all(req.files.map(async f => {
-      let data, mediaType;
-      if (supported.includes(f.mimetype)) {
-        data = fs.readFileSync(f.path).toString('base64');
-        mediaType = f.mimetype;
-      } else {
-        const converted = await sharp(f.path).jpeg({ quality: 85 }).toBuffer();
-        data = converted.toString('base64');
-        mediaType = 'image/jpeg';
-      }
-      return { type: 'image', source: { type: 'base64', media_type: mediaType, data } };
+      const buf = await sharp(f.path)
+        .rotate()
+        .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+      return { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: buf.toString('base64') } };
     }));
 
     const response = await anthropic.messages.create({
@@ -329,13 +325,17 @@ Return ONLY this JSON with no extra text:
       data = JSON.parse(match[0]);
     }
 
-    // Store uploaded file paths for later use
+    // Save processed JPEG for eBay image URLs — resize + auto-rotate EXIF
     const filenames = await Promise.all(req.files.map(async f => {
-      const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-      if (supported.includes(f.mimetype)) return path.basename(f.path);
-      const jpegPath = f.path.replace(/\.[^.]+$/, '.jpg');
-      await sharp(f.path).jpeg({ quality: 85 }).toFile(jpegPath);
-      fs.unlinkSync(f.path);
+      const base = path.basename(f.path, path.extname(f.path));
+      const jpegPath = path.join(uploadsDir, base + '.jpg');
+      const buf = await sharp(f.path)
+        .rotate()
+        .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 88 })
+        .toBuffer();
+      fs.writeFileSync(jpegPath, buf);
+      if (f.path !== jpegPath) { try { fs.unlinkSync(f.path); } catch {} }
       return path.basename(jpegPath);
     }));
     data.uploadedFiles = filenames;
