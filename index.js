@@ -139,9 +139,17 @@ app.get('/callback', async (req, res) => {
 
 app.get('/api/status', (req, res) => {
   res.json({
-    connected: !!(ebayToken && Date.now() < ebayTokenExpiry),
+    connected: !!(ebayToken),
     listingCount: activeListings.length
   });
+});
+
+app.post('/api/set-token', (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'No token provided' });
+  ebayToken = token.trim();
+  ebayTokenExpiry = Date.now() + (2 * 60 * 60 * 1000);
+  res.json({ success: true });
 });
 
 // Analyze photos with Claude AI
