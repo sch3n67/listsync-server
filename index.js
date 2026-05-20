@@ -199,10 +199,12 @@ Return ONLY this JSON with no extra text:
     });
 
     let data;
+    const rawText = response.content[0].text;
     try {
-      data = JSON.parse(response.content[0].text);
+      data = JSON.parse(rawText);
     } catch {
-      const match = response.content[0].text.match(/\{[\s\S]*\}/);
+      const match = rawText.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('AI did not return valid JSON. Raw response: ' + rawText.slice(0, 200));
       data = JSON.parse(match[0]);
     }
 
