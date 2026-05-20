@@ -229,6 +229,29 @@ Return ONLY this JSON with no extra text:
   }
 });
 
+async function ensureLocation() {
+  const locationKey = 'listsync-default';
+  const headers = {
+    Authorization: `Bearer ${ebayToken}`,
+    'Content-Type': 'application/json',
+    'Content-Language': 'en-US'
+  };
+  try {
+    await axios.get(`https://api.ebay.com/sell/inventory/v1/location/${locationKey}`, { headers });
+  } catch {
+    await axios.post(
+      `https://api.ebay.com/sell/inventory/v1/location/${locationKey}`,
+      {
+        location: { address: { country: 'US' } },
+        locationTypes: ['WAREHOUSE'],
+        name: 'ListSync Default'
+      },
+      { headers }
+    );
+  }
+  return locationKey;
+}
+
 // Get business policies from eBay account
 async function getPolicies() {
   const headers = { Authorization: `Bearer ${ebayToken}` };
@@ -257,8 +280,9 @@ app.post('/api/list', async (req, res) => {
   console.log('IMAGE URLS BEING SENT TO EBAY:', JSON.stringify(imageUrls));
 
   try {
-    const policies = await getPolicies();
+    const [policies, merchantLocationKey] = await Promise.all([getPolicies(), ensureLocation()]);
     console.log('Policies:', JSON.stringify(policies));
+    console.log('Location key:', merchantLocationKey);
     console.log('Step 1: Creating inventory item, imageUrls:', JSON.stringify(imageUrls));
     await axios.put(
       `https://api.ebay.com/sell/inventory/v1/inventory_item/${sku}`,
@@ -293,6 +317,7 @@ app.post('/api/list', async (req, res) => {
       availableQuantity: 1,
       categoryId: getCategoryId(category),
       listingDescription: description,
+      merchantLocationKey,
       pricingSummary: {
         price: { value: String(price), currency: 'USD' }
       }
