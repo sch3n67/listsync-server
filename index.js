@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const axios = require('axios');
 const multer = require('multer');
 const Anthropic = require('@anthropic-ai/sdk');
+const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 
@@ -45,10 +46,12 @@ const EBAY_RUNAME_CLEAN = (EBAY_RUNAME || '').trim();
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
+// eBay token storage
 let ebayToken = null;
 let ebayTokenExpiry = null;
 let activeListings = [];
 
+// eBay category map for clothing
 const CATEGORY_MAP = {
   "men's t-shirt": '15687',
   "men's shirt": '185100',
@@ -91,6 +94,7 @@ const CONDITION_MAP = {
   'Acceptable': 'LIKE_NEW'
 };
 
+// eBay OAuth
 const EBAY_SCOPE = [
   'https://api.ebay.com/oauth/api_scope',
   'https://api.ebay.com/oauth/api_scope/sell.inventory',
@@ -152,19 +156,26 @@ app.post('/api/set-token', (req, res) => {
   res.json({ success: true });
 });
 
+// Analyze photos with Claude AI
 app.post('/api/analyze', upload.array('photos', 10), async (req, res) => {
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ error: 'No photos uploaded' });
   }
 
   try {
-    const imageBlocks = req.files.map(f => {
-      const data = fs.readFileSync(f.path).toString('base64');
-      return {
-        type: 'image',
-        source: { type: 'base64', media_type: f.mimetype, data }
-      };
-    });
+    const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const imageBlocks = await Promise.all(req.files.map(async f => {
+      let data, mediaType;
+      if (supported.includes(f.mimetype)) {
+        data = fs.readFileSync(f.path).toString('base64');
+        mediaType = f.mimetype;
+      } else {
+        const converted = await sharp(f.path).jpeg({ quality: 85 }).toBuffer();
+        data = converted.toString('base64');
+        mediaType = 'image/jpeg';
+      }
+      return { type: 'image', source: { type: 'base64', media_type: mediaType, data } };
+    }));
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -207,6 +218,7 @@ Return ONLY this JSON with no extra text:
       data = JSON.parse(match[0]);
     }
 
+    // Store uploaded file paths for later use
     const filenames = req.files.map(f => path.basename(f.path));
     data.uploadedFiles = filenames;
 
@@ -217,6 +229,7 @@ Return ONLY this JSON with no extra text:
   }
 });
 
+// Get business policies from eBay account
 async function getPolicies() {
   const headers = { Authorization: `Bearer ${ebayToken}` };
   const [fulfillment, payment, returns] = await Promise.all([
@@ -231,6 +244,7 @@ async function getPolicies() {
   };
 }
 
+// Create eBay listing
 app.post('/api/list', async (req, res) => {
   if (!ebayToken || Date.now() >= ebayTokenExpiry) {
     return res.status(401).json({ error: 'Not connected to eBay. Please reconnect.' });
@@ -245,6 +259,7 @@ app.post('/api/list', async (req, res) => {
   try {
     const policies = await getPolicies();
 
+    // Step 1: Create inventory item
     await axios.put(
       `https://api.ebay.com/sell/inventory/v1/inventory_item/${sku}`,
       {
@@ -258,7 +273,7 @@ app.post('/api/list', async (req, res) => {
             Color: [color || 'See photos']
           }
         },
-        condition: CONDITION_MAP[condition] || 'LIKE_NEW',
+        condition: CONDITION_MAP[condition] || 'GOOD',
         availability: { shipToLocationAvailability: { quantity: 1 } }
       },
       {
@@ -270,6 +285,7 @@ app.post('/api/list', async (req, res) => {
       }
     );
 
+    // Step 2: Create offer
     const offerPayload = {
       sku,
       marketplaceId: 'EBAY_US',
@@ -301,6 +317,7 @@ app.post('/api/list', async (req, res) => {
 
     const offerId = offerRes.data.offerId;
 
+    // Step 3: Publish offer
     const publishRes = await axios.post(
       `https://api.ebay.com/sell/inventory/v1/offer/${offerId}/publish`,
       {},
@@ -327,10 +344,12 @@ app.post('/api/list', async (req, res) => {
   }
 });
 
+// Get all active listings
 app.get('/api/listings', (req, res) => {
   res.json(activeListings);
 });
 
+// Mark as sold / delete listing
 app.delete('/api/listing/:sku', async (req, res) => {
   if (!ebayToken) return res.status(401).json({ error: 'Not connected to eBay' });
 
@@ -347,6 +366,7 @@ app.delete('/api/listing/:sku', async (req, res) => {
   }
 });
 
+// eBay compliance: account deletion notifications
 app.get('/ebay/account-deletion', (req, res) => {
   const challengeCode = req.query.challenge_code;
   if (!challengeCode) return res.status(400).json({ error: 'Missing challenge_code' });
