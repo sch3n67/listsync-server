@@ -83,11 +83,11 @@ function getCategoryId(categoryName) {
 }
 
 const CONDITION_MAP = {
-  'New with tags': 'NEW_WITH_TAGS',
-  'New without tags': 'NEW_WITHOUT_TAGS',
+  'New with tags': 'NEW',
+  'New without tags': 'NEW_WITH_DEFECTS',
   'Very Good': 'LIKE_NEW',
-  'Good': 'GOOD',
-  'Acceptable': 'ACCEPTABLE'
+  'Good': 'LIKE_NEW',
+  'Acceptable': 'LIKE_NEW'
 };
 
 // eBay OAuth
