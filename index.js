@@ -86,6 +86,32 @@ function getCategoryId(categoryName) {
   return CATEGORY_MAP.default;
 }
 
+function getDepartment(category) {
+  const lower = (category || '').toLowerCase();
+  if (lower.includes("women")) return "Women";
+  if (lower.includes("girl")) return "Girls";
+  if (lower.includes("boy")) return "Boys";
+  return "Men";
+}
+
+function getItemType(category) {
+  const lower = (category || '').toLowerCase();
+  if (lower.includes('t-shirt')) return 'T-Shirt';
+  if (lower.includes('dress shirt')) return 'Dress Shirt';
+  if (lower.includes('hoodie')) return 'Hoodie';
+  if (lower.includes('sweater')) return 'Sweater';
+  if (lower.includes('jacket') || lower.includes('coat')) return 'Jacket';
+  if (lower.includes('jeans')) return 'Jeans';
+  if (lower.includes('shorts')) return 'Shorts';
+  if (lower.includes('pants')) return 'Pants';
+  if (lower.includes('dress')) return 'Dress';
+  if (lower.includes('skirt')) return 'Skirt';
+  if (lower.includes('blouse')) return 'Blouse';
+  if (lower.includes('shirt')) return 'Shirt';
+  if (lower.includes('top')) return 'Top';
+  return 'Other';
+}
+
 const CONDITION_MAP = {
   'New with tags': 'NEW',
   'New without tags': 'NEW_WITH_DEFECTS',
@@ -219,7 +245,14 @@ Return ONLY this JSON with no extra text:
     }
 
     // Store uploaded file paths for later use
-    const filenames = req.files.map(f => path.basename(f.path));
+    const filenames = await Promise.all(req.files.map(async f => {
+      const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (supported.includes(f.mimetype)) return path.basename(f.path);
+      const jpegPath = f.path.replace(/\.[^.]+$/, '.jpg');
+      await sharp(f.path).jpeg({ quality: 85 }).toFile(jpegPath);
+      fs.unlinkSync(f.path);
+      return path.basename(jpegPath);
+    }));
     data.uploadedFiles = filenames;
 
     res.json(data);
@@ -267,19 +300,23 @@ async function ensureLocation() {
   return locationKey;
 }
 
-// Get business policies from eBay account
 async function getPolicies() {
-  const headers = { Authorization: `Bearer ${ebayToken}` };
-  const [fulfillment, payment, returns] = await Promise.all([
-    axios.get('https://api.ebay.com/sell/account/v1/fulfillment_policy?marketplace_id=EBAY_US', { headers }),
-    axios.get('https://api.ebay.com/sell/account/v1/payment_policy?marketplace_id=EBAY_US', { headers }),
-    axios.get('https://api.ebay.com/sell/account/v1/return_policy?marketplace_id=EBAY_US', { headers })
-  ]);
-  return {
-    fulfillmentPolicyId: fulfillment.data.fulfillmentPolicies?.[0]?.fulfillmentPolicyId,
-    paymentPolicyId: payment.data.paymentPolicies?.[0]?.paymentPolicyId,
-    returnPolicyId: returns.data.returnPolicies?.[0]?.returnPolicyId
-  };
+  try {
+    const headers = { Authorization: `Bearer ${ebayToken}` };
+    const [fulfillment, payment, returns] = await Promise.all([
+      axios.get('https://api.ebay.com/sell/account/v1/fulfillment_policy?marketplace_id=EBAY_US', { headers }),
+      axios.get('https://api.ebay.com/sell/account/v1/payment_policy?marketplace_id=EBAY_US', { headers }),
+      axios.get('https://api.ebay.com/sell/account/v1/return_policy?marketplace_id=EBAY_US', { headers })
+    ]);
+    return {
+      fulfillmentPolicyId: fulfillment.data.fulfillmentPolicies?.[0]?.fulfillmentPolicyId,
+      paymentPolicyId: payment.data.paymentPolicies?.[0]?.paymentPolicyId,
+      returnPolicyId: returns.data.returnPolicies?.[0]?.returnPolicyId
+    };
+  } catch (err) {
+    console.error('getPolicies error:', err.response?.data || err.message);
+    return {};
+  }
 }
 
 // Create eBay listing
@@ -309,7 +346,9 @@ app.post('/api/list', async (req, res) => {
           aspects: {
             Brand: [brand || 'Unknown'],
             Size: [size || 'See description'],
-            Color: [color || 'See photos']
+            Color: [color || 'See photos'],
+            Department: [getDepartment(category)],
+            Type: [getItemType(category)]
           }
         },
         condition: CONDITION_MAP[condition] || 'LIKE_NEW',
@@ -334,14 +373,15 @@ app.post('/api/list', async (req, res) => {
       listingDescription: description,
       merchantLocationKey,
       pricingSummary: {
-        price: { value: String(price), currency: 'USD' }
+        price: { value: Number(price).toFixed(2), currency: 'USD' }
       }
     };
 
-    if (policies.fulfillmentPolicyId) offerPayload.listingPolicies = {};
-    if (policies.fulfillmentPolicyId) offerPayload.listingPolicies.fulfillmentPolicyId = policies.fulfillmentPolicyId;
-    if (policies.paymentPolicyId) offerPayload.listingPolicies.paymentPolicyId = policies.paymentPolicyId;
-    if (policies.returnPolicyId) offerPayload.listingPolicies.returnPolicyId = policies.returnPolicyId;
+    const listingPolicies = {};
+    if (policies.fulfillmentPolicyId) listingPolicies.fulfillmentPolicyId = policies.fulfillmentPolicyId;
+    if (policies.paymentPolicyId) listingPolicies.paymentPolicyId = policies.paymentPolicyId;
+    if (policies.returnPolicyId) listingPolicies.returnPolicyId = policies.returnPolicyId;
+    if (Object.keys(listingPolicies).length > 0) offerPayload.listingPolicies = listingPolicies;
 
     console.log('Step 2: Creating offer...');
     const offerRes = await axios.post(
