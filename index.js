@@ -242,7 +242,7 @@ app.post('/api/list', async (req, res) => {
 
   const { title, description, price, condition, category, brand, size, color, uploadedFiles } = req.body;
   const sku = `ls-${Date.now()}`;
-  const baseUrl = ENDPOINT_URL ? ENDPOINT_URL.replace('/ebay/account-deletion', '') : `https://${process.env.RENDER_EXTERNAL_URL || 'localhost:3000'}`;
+  const baseUrl = 'https://listsync-server.onrender.com';
   const imageUrls = (uploadedFiles || []).map(f => `${baseUrl}/uploads/${f}`);
 
   try {
