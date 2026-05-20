@@ -214,7 +214,7 @@ app.post('/api/analyze', upload.array('photos', 10), async (req, res) => {
             type: 'text',
             text: `You are an expert eBay clothing reseller. Analyze these clothing photos carefully and return a JSON object.
 
-Look for any visible labels, tags, or text in the photos to identify brand and size.
+Look for any visible labels, tags, or text in the photos to identify brand, size, and material.
 Assess the condition honestly based on what you can see.
 Price competitively based on the brand and condition.
 
@@ -224,7 +224,9 @@ Return ONLY this JSON with no extra text:
   "brand": "exact brand name or Unknown",
   "category": "one of: Men's T-Shirt, Men's Shirt, Men's Jeans, Men's Pants, Men's Shorts, Men's Jacket, Men's Sweater, Men's Hoodie, Women's Top, Women's T-Shirt, Women's Jeans, Women's Pants, Women's Shorts, Women's Dress, Women's Skirt, Women's Jacket, Women's Sweater, Women's Hoodie",
   "size": "exact size visible on tag or estimated (XS/S/M/L/XL/XXL or numeric)",
+  "sizeType": "one of: Regular, Big & Tall, Petite, Plus, Maternity — pick Regular if unsure",
   "color": "primary color",
+  "material": "fabric type visible on tag or estimated (e.g. Cotton, Polyester, Denim, Wool, Linen) — pick Cotton if unsure",
   "condition": "one of: New with tags, New without tags, Very Good, Good, Acceptable",
   "price": <number in USD, no quotes>,
   "description": "3-4 sentence eBay description covering: what it is, brand/style details, condition specifics, any flaws to disclose"
@@ -325,7 +327,7 @@ app.post('/api/list', async (req, res) => {
     return res.status(401).json({ error: 'Not connected to eBay. Please reconnect.' });
   }
 
-  const { title, description, price, condition, category, brand, size, color, uploadedFiles } = req.body;
+  const { title, description, price, condition, category, brand, size, color, sizeType, material, uploadedFiles } = req.body;
   const sku = `ls-${Date.now()}`;
   const baseUrl = 'https://listsync-server.onrender.com';
   const imageUrls = (uploadedFiles || []).map(f => `${baseUrl}/uploads/${f}`);
@@ -335,7 +337,16 @@ app.post('/api/list', async (req, res) => {
     const [policies, merchantLocationKey] = await Promise.all([getPolicies(), ensureLocation()]);
     console.log('Policies:', JSON.stringify(policies));
     console.log('Location key:', merchantLocationKey);
-    console.log('Step 1: Creating inventory item, imageUrls:', JSON.stringify(imageUrls));
+    const aspects = {
+      Brand: [brand || 'Unknown'],
+      Size: [size || 'See description'],
+      Color: [color || 'See photos'],
+      Department: [getDepartment(category)],
+      Type: [getItemType(category)],
+      'Size Type': [sizeType || 'Regular'],
+      'Fabric Type': [material || 'Cotton']
+    };
+    console.log('Step 1: aspects being sent:', JSON.stringify(aspects));
     await axios.put(
       `https://api.ebay.com/sell/inventory/v1/inventory_item/${sku}`,
       {
@@ -343,13 +354,7 @@ app.post('/api/list', async (req, res) => {
           title,
           description,
           ...(imageUrls.length > 0 && { imageUrls }),
-          aspects: {
-            Brand: [brand || 'Unknown'],
-            Size: [size || 'See description'],
-            Color: [color || 'See photos'],
-            Department: [getDepartment(category)],
-            Type: [getItemType(category)]
-          }
+          aspects
         },
         condition: CONDITION_MAP[condition] || 'LIKE_NEW',
         availability: { shipToLocationAvailability: { quantity: 1 } }
