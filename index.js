@@ -51,39 +51,104 @@ let ebayToken = null;
 let ebayTokenExpiry = null;
 let activeListings = [];
 
-// eBay category map for clothing
+// eBay category map
 const CATEGORY_MAP = {
-  "men's t-shirt": '15687',
-  "men's shirt": '185100',
-  "men's dress shirt": '57991',
-  "men's jeans": '11483',
-  "men's pants": '57989',
-  "men's shorts": '15689',
-  "men's jacket": '57988',
-  "men's coat": '57988',
-  "men's sweater": '4250',
-  "men's hoodie": '185101',
-  "women's top": '53159',
-  "women's blouse": '53159',
-  "women's t-shirt": '53159',
+  // Men's Tops
+  "men's t-shirt": '15687', "men's polo shirt": '2989', "men's polo": '2989',
+  "men's casual shirt": '185100', "men's dress shirt": '57991', "men's shirt": '185100',
+  "men's tank top": '15690', "men's henley": '185100',
+  // Men's Bottoms
+  "men's jeans": '11483', "men's chinos": '57989', "men's pants": '57989',
+  "men's athletic shorts": '15689', "men's shorts": '15689',
+  "men's sweatpants": '15691', "men's joggers": '15691',
+  "men's athletic pants": '137094', "men's athletic top": '15687',
+  // Men's Outerwear
+  "men's suit jacket": '3001', "men's blazer": '3002',
+  "men's jacket": '57988', "men's coat": '57988',
+  "men's hoodie": '185101', "men's cardigan": '4250', "men's sweater": '4250',
+  "men's vest": '15767',
+  // Men's Shoes
+  "men's sneakers": '15709', "men's running shoes": '15709', "men's slip-ons": '15709',
+  "men's dress shoes": '53120', "men's loafers": '53120',
+  "men's boots": '11498', "men's sandals": '11503',
+  // Women's Tops
+  "women's crop top": '53159', "women's camisole": '53159', "women's tank top": '53159',
+  "women's t-shirt": '53159', "women's blouse": '53159', "women's top": '53159',
+  "women's polo": '53159',
+  // Women's Bottoms
+  "women's athletic leggings": '169001', "women's leggings": '169001',
+  "women's sports bra": '36988',
+  "women's athletic top": '137084', "women's athletic shorts": '11555',
+  "women's mini skirt": '63863', "women's maxi skirt": '63863', "women's skirt": '63863',
   "women's jeans": '11554',
-  "women's pants": '63867',
+  "women's sweatpants": '63867', "women's joggers": '63867', "women's pants": '63867',
   "women's shorts": '11555',
-  "women's dress": '63861',
-  "women's skirt": '63863',
-  "women's jacket": '63862',
-  "women's coat": '63862',
-  "women's sweater": '63864',
-  "women's hoodie": '63864',
+  // Women's Dresses
+  "women's maxi dress": '63861', "women's mini dress": '63861', "women's midi dress": '63861',
+  "women's casual dress": '63861', "women's formal dress": '63861',
+  "women's sundress": '63861', "women's dress": '63861',
+  // Women's Outerwear
+  "women's blazer": '63862', "women's jacket": '63862', "women's coat": '63862', "women's vest": '63862',
+  "women's cardigan": '63864', "women's hoodie": '63864', "women's sweater": '63864',
+  // Women's Shoes
+  "women's sneakers": '3034', "women's running shoes": '3034',
+  "women's loafers": '3034', "women's slip-ons": '3034',
+  "women's ankle boots": '45333', "women's wedges": '45333', "women's mules": '45333',
+  "women's heels": '45333', "women's pumps": '45333',
+  "women's boots": '45333', "women's sandals": '45333', "women's flats": '45333',
+  // Boys'
+  "boys' shoes": '57991', "boys' t-shirt": '57990', "boys' pants": '57990',
+  "boys' shorts": '57990', "boys' jacket": '57990', "boys' hoodie": '57990',
+  // Girls'
+  "girls' shoes": '57991', "girls' t-shirt": '57991', "girls' dress": '57991',
+  "girls' pants": '57991', "girls' skirt": '57991', "girls' jacket": '57991', "girls' hoodie": '57991',
+  // Accessories
+  "women's belt": '45233', "men's belt": '2993',
+  "women's hat": '52382', "men's hat": '52365', "men's cap": '52365',
+  "women's sunglasses": '101020', "men's sunglasses": '101020',
+  "watch": '31387', "men's tie": '2999', "men's wallet": '15731',
+  "women's handbag": '169291', "women's purse": '169291', "women's clutch": '169291',
+  "backpack": '169291',
+  "women's scarf": '45238', "men's scarf": '2996',
+  "women's gloves": '45238', "men's gloves": '2992',
+  "jewelry - necklace": '10968', "jewelry - bracelet": '10968',
+  "jewelry - earrings": '10968', "jewelry - ring": '10968',
   "default": '11484'
 };
 
 function getCategoryId(categoryName) {
   const lower = (categoryName || '').toLowerCase();
-  for (const [key, id] of Object.entries(CATEGORY_MAP)) {
-    if (lower.includes(key)) return id;
+  if (CATEGORY_MAP[lower]) return CATEGORY_MAP[lower];
+  // Match longest key first (most specific)
+  const keys = Object.keys(CATEGORY_MAP).filter(k => k !== 'default').sort((a, b) => b.length - a.length);
+  for (const key of keys) {
+    if (lower.includes(key)) return CATEGORY_MAP[key];
   }
   return CATEGORY_MAP.default;
+}
+
+function isShoeCategory(category) {
+  return /sneakers?|running shoes?|dress shoes?|ankle boots?|boots?|sandals?|loafers?|slip.ons?|heels?|pumps?|flats?|wedges?|mules?/i.test(category || '');
+}
+
+function isAccessoryCategory(category) {
+  return /\bbelt\b|\bhat\b|\bcap\b|sunglasses|\bwatch\b|\btie\b|\bwallet\b|handbag|\bpurse\b|\bclutch\b|backpack|\bscarf\b|gloves?|jewelry|necklace|bracelet|earrings?|\bring\b/i.test(category || '');
+}
+
+function getShoeType(category) {
+  const lower = (category || '').toLowerCase();
+  if (lower.includes('sneaker')) return 'Sneakers & Athletic Shoes';
+  if (lower.includes('running')) return 'Athletic Shoes';
+  if (lower.includes('ankle boot')) return 'Ankle Boots & Booties';
+  if (lower.includes('boot')) return 'Boots';
+  if (lower.includes('sandal')) return 'Sandals';
+  if (lower.includes('heel') || lower.includes('pump')) return 'Heels';
+  if (lower.includes('flat')) return 'Flats & Oxfords';
+  if (lower.includes('loafer') || lower.includes('slip')) return 'Loafers & Slip-Ons';
+  if (lower.includes('dress shoe')) return 'Dress Shoes';
+  if (lower.includes('wedge')) return 'Wedge Shoes';
+  if (lower.includes('mule')) return 'Mules';
+  return 'Shoes';
 }
 
 function getDepartment(category) {
@@ -222,7 +287,7 @@ app.post('/api/analyze', upload.array('photos', 10), async (req, res) => {
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
+      max_tokens: 1500,
       messages: [{
         role: 'user',
         content: [
@@ -239,11 +304,11 @@ Return ONLY this JSON with no extra text:
 {
   "title": "eBay title max 80 chars - include brand, item type, size, color, key details",
   "brand": "exact brand name or Unknown",
-  "category": "one of: Men's T-Shirt, Men's Shirt, Men's Jeans, Men's Pants, Men's Shorts, Men's Jacket, Men's Sweater, Men's Hoodie, Women's Top, Women's T-Shirt, Women's Jeans, Women's Pants, Women's Shorts, Women's Dress, Women's Skirt, Women's Jacket, Women's Sweater, Women's Hoodie",
-  "size": "exact size visible on tag or estimated (XS/S/M/L/XL/XXL or numeric)",
-  "sizeType": "one of: Regular, Big & Tall, Petite, Plus, Maternity — pick Regular if unsure",
+  "category": "pick best match: Men's T-Shirt, Men's Polo Shirt, Men's Casual Shirt, Men's Dress Shirt, Men's Tank Top, Men's Henley, Men's Jeans, Men's Chinos, Men's Pants, Men's Shorts, Men's Sweatpants, Men's Joggers, Men's Athletic Shorts, Men's Athletic Pants, Men's Athletic Top, Men's Jacket, Men's Coat, Men's Hoodie, Men's Sweater, Men's Cardigan, Men's Vest, Men's Blazer, Men's Suit Jacket, Men's Sneakers, Men's Running Shoes, Men's Dress Shoes, Men's Boots, Men's Sandals, Men's Loafers, Men's Slip-Ons, Women's T-Shirt, Women's Blouse, Women's Top, Women's Tank Top, Women's Crop Top, Women's Camisole, Women's Polo, Women's Jeans, Women's Pants, Women's Leggings, Women's Shorts, Women's Skirt, Women's Mini Skirt, Women's Maxi Skirt, Women's Sweatpants, Women's Joggers, Women's Casual Dress, Women's Formal Dress, Women's Maxi Dress, Women's Mini Dress, Women's Midi Dress, Women's Sundress, Women's Jacket, Women's Coat, Women's Hoodie, Women's Sweater, Women's Cardigan, Women's Vest, Women's Blazer, Women's Athletic Top, Women's Athletic Shorts, Women's Athletic Leggings, Women's Sports Bra, Women's Sneakers, Women's Running Shoes, Women's Heels, Women's Pumps, Women's Boots, Women's Ankle Boots, Women's Sandals, Women's Flats, Women's Wedges, Women's Loafers, Women's Slip-Ons, Women's Mules, Boys' T-Shirt, Boys' Pants, Boys' Shorts, Boys' Jacket, Boys' Hoodie, Boys' Shoes, Girls' T-Shirt, Girls' Dress, Girls' Pants, Girls' Skirt, Girls' Jacket, Girls' Hoodie, Girls' Shoes, Men's Belt, Women's Belt, Men's Hat, Women's Hat, Men's Sunglasses, Women's Sunglasses, Watch, Men's Tie, Men's Wallet, Women's Handbag, Women's Purse, Women's Clutch, Backpack, Men's Scarf, Women's Scarf, Men's Gloves, Women's Gloves, Jewelry - Necklace, Jewelry - Bracelet, Jewelry - Earrings, Jewelry - Ring",
+  "size": "IMPORTANT: for shoes return US numeric size (e.g. 10, 10.5, 9). For clothing: XS/S/M/L/XL/XXL or waist/inseam (e.g. 32x30). Read tag if visible.",
+  "sizeType": "for clothing: Regular, Big & Tall, Petite, Plus, Maternity. For shoes: Medium (Regular), Narrow, Wide, Extra Wide. Pick Regular/Medium if unsure.",
   "color": "primary color",
-  "material": "fabric type visible on tag or estimated (e.g. Cotton, Polyester, Denim, Wool, Linen) — pick Cotton if unsure",
+  "material": "for clothing: fabric (Cotton, Polyester, Denim, Wool, Linen). For shoes: upper material (Leather, Canvas, Mesh, Suede). Estimate if tag not visible.",
   "condition": "one of: New with tags, New without tags, Very Good, Good, Acceptable",
   "price": <number in USD, no quotes>,
   "description": "3-4 sentence eBay description covering: what it is, brand/style details, condition specifics, any flaws to disclose",
@@ -369,22 +434,46 @@ app.post('/api/list', async (req, res) => {
     const [policies, merchantLocationKey] = await Promise.all([getPolicies(), ensureLocation()]);
     console.log('Policies:', JSON.stringify(policies));
     console.log('Location key:', merchantLocationKey);
-    const aspects = {
-      Brand: [brand || 'Unknown'],
-      Size: [size || 'See description'],
-      Color: [color || 'See photos'],
-      Department: [getDepartment(category)],
-      Type: [getItemType(category)],
-      'Size Type': [sizeType || 'Regular'],
-      'Fabric Type': [material || 'Cotton'],
-      Style: [getStyle(category)],
-      Fit: ['Regular'],
-      Occasion: ['Casual'],
-      Season: ['Fall', 'Winter', 'Spring', 'Summer'],
-      'Sleeve Length': [getSleeveLength(category)],
-      Pattern: ['Solid'],
-      'Country/Region of Manufacture': ['Unknown']
-    };
+
+    let aspects;
+    if (isShoeCategory(category)) {
+      aspects = {
+        Brand: [brand || 'Unknown'],
+        'US Shoe Size': [size || 'See description'],
+        Color: [color || 'See photos'],
+        Department: [getDepartment(category)],
+        Type: [getShoeType(category)],
+        Width: [sizeType || 'Medium'],
+        'Upper Material': [material || 'Leather'],
+        Style: ['Casual'],
+        Occasion: ['Casual'],
+        'Country/Region of Manufacture': ['Unknown']
+      };
+    } else if (isAccessoryCategory(category)) {
+      aspects = {
+        Brand: [brand || 'Unknown'],
+        Color: [color || 'See photos'],
+        Department: [getDepartment(category)],
+        'Country/Region of Manufacture': ['Unknown']
+      };
+    } else {
+      aspects = {
+        Brand: [brand || 'Unknown'],
+        Size: [size || 'See description'],
+        Color: [color || 'See photos'],
+        Department: [getDepartment(category)],
+        Type: [getItemType(category)],
+        'Size Type': [sizeType || 'Regular'],
+        'Fabric Type': [material || 'Cotton'],
+        Style: [getStyle(category)],
+        Fit: ['Regular'],
+        Occasion: ['Casual'],
+        Season: ['Fall', 'Winter', 'Spring', 'Summer'],
+        'Sleeve Length': [getSleeveLength(category)],
+        Pattern: ['Solid'],
+        'Country/Region of Manufacture': ['Unknown']
+      };
+    }
     console.log('Step 1: aspects being sent:', JSON.stringify(aspects));
     await axios.put(
       `https://api.ebay.com/sell/inventory/v1/inventory_item/${sku}`,
