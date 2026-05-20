@@ -230,7 +230,7 @@ Return ONLY this JSON with no extra text:
 });
 
 async function ensureLocation() {
-  const locationKey = 'listsync-default';
+  const locationKey = 'listsync1';
   const headers = {
     Authorization: `Bearer ${ebayToken}`,
     'Content-Type': 'application/json',
@@ -238,16 +238,31 @@ async function ensureLocation() {
   };
   try {
     await axios.get(`https://api.ebay.com/sell/inventory/v1/location/${locationKey}`, { headers });
+    console.log('Location already exists');
   } catch {
-    await axios.post(
-      `https://api.ebay.com/sell/inventory/v1/location/${locationKey}`,
-      {
-        location: { address: { country: 'US' } },
-        locationTypes: ['WAREHOUSE'],
-        name: 'ListSync Default'
-      },
-      { headers }
-    );
+    try {
+      const createRes = await axios.post(
+        `https://api.ebay.com/sell/inventory/v1/location/${locationKey}`,
+        {
+          location: {
+            address: {
+              addressLine1: '1 Main St',
+              city: 'San Jose',
+              stateOrProvince: 'CA',
+              postalCode: '95131',
+              country: 'US'
+            }
+          },
+          locationTypes: ['WAREHOUSE'],
+          merchantLocationStatus: 'ENABLED',
+          name: 'ListSync Default'
+        },
+        { headers }
+      );
+      console.log('Location created:', createRes.status);
+    } catch (err) {
+      console.error('Location create error:', err.response?.data || err.message);
+    }
   }
   return locationKey;
 }
@@ -297,7 +312,7 @@ app.post('/api/list', async (req, res) => {
             Color: [color || 'See photos']
           }
         },
-        condition: CONDITION_MAP[condition] || 'GOOD',
+        condition: CONDITION_MAP[condition] || 'LIKE_NEW',
         availability: { shipToLocationAvailability: { quantity: 1 } }
       },
       {
